@@ -3,44 +3,39 @@
 class GoogleAnalyticsHelper extends AppHelper
 {
 
-	public $helpers = array('Session');
+	public $trackerName = 'ga';
 
-	protected $tag = '';
+	public function trackingCode($webPropertyId, $options = array()) {
+		$default = array('cookieDomain' => 'auto');
+		$options = am($default, $options);
+		return $this->command('create', $webPropertyId, $options);
+	}
 
-	protected $_options = array(
-		'isLocal' => false,
-		'trackUser' => false
-	);
+	public function pageView($options = array()) {
+		return $this->command('send', 'pageview', $options);
+	}
 
-	protected $_validFieldNames = array(
-		'userId'/*,'appName', 'appVersion'*/);
-
-	function getTrackingCode() {
-		
-		$createOnlyFields = [];
-		$options = am($this->_options, Configure::read('GoogleAnalytics'));
-		
-		$webPropertyId = Configure::read('GoogleAnalytics.webPropertyId');
-
-		if ($webPropertyId == NULL) {
-			throw new CakeException('WebPropertyId has not been set for GoogleAnalytics');
+	public function command($method) {
+		$args = array_slice(func_get_args(), 1);
+		$cmd = '';
+		$argString = '';
+		// build the arg string
+		$formattedArgs = [];
+		foreach ($args as $arg) {
+			if (is_string($arg)) {
+				$formattedArgs[] = String::insert('":arg"', array('arg' => $arg));
+			} elseif (is_array($arg)  && !empty($arg)) {
+				$formattedArgs[] = json_encode($arg);
+			}
 		}
-
-		if ($options['isLocal']) {
-			$createOnlyFields['cookieDomain'] = 'none';
+		if (count($formattedArgs) > 0) {
+			$argString = ", " . implode(", ", $formattedArgs);
 		}
-	
-		$fields = array_intersect_key($options, array_flip($this->_validFieldNames));
-
-		if ($options['trackUser']) {
-			$fields['userId'] = $this->Session->read('Auth.User.id');
-		}
-
-		return $this->_View->element('GoogleAnalytics', array(
-			'webPropertyId' => $webPropertyId,
-			'createOnlyFields' => $createOnlyFields,
-			'fields' => $fields
-			));
+		// build the method call
+		$cmd = String::insert(':trackerName(":method":argString);', array(
+			'trackerName' => $this->trackerName, 'method' => $method,
+			'argString' => $argString));
+		return $cmd;
 	}
 }
 
